@@ -434,6 +434,15 @@ pub trait ArgminInv<T> {
     fn inv(&self) -> Result<T, Error>;
 }
 
+/// Solve a linear system using LU decomposition.
+///
+/// Solves `A` * `x` = `rhs`, where `A` is `self` and `x` is the unknown.
+/// Returns `x` or an error if the system is singular.
+pub trait ArgminLuSolve<T> {
+    /// Solve linear system using LU decomposition.
+    fn lu_solve(&self, rhs: &T) -> Result<T, Error>;
+}
+
 /// Create a random number
 #[cfg(feature = "rand")]
 pub trait ArgminRandom {

@@ -15,6 +15,7 @@ mod eye;
 mod inv;
 mod l1norm;
 mod l2norm;
+mod lu;
 mod minmax;
 mod mul;
 #[cfg(feature = "rand")]
