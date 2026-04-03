@@ -434,6 +434,15 @@ pub trait ArgminInv<T> {
     fn inv(&self) -> Result<T, Error>;
 }
 
+/// Solve a linear system using Cholesky decomposition.
+///
+/// Solves `A` * `x` = `rhs`, where `A` is `self` and `x` is the unknown.
+/// Returns `x` or an error if the matrix is not symmetric positive definite.
+pub trait ArgminCholeskySolve<T> {
+    /// Solve linear system using Cholesky decomposition.
+    fn cholesky_solve(&self, rhs: &T) -> Result<T, Error>;
+}
+
 /// Solve a linear system using LU decomposition.
 ///
 /// Solves `A` * `x` = `rhs`, where `A` is `self` and `x` is the unknown.

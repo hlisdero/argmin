@@ -8,6 +8,7 @@
 #![allow(unused_imports)]
 
 mod add;
+mod cholesky;
 mod conj;
 mod div;
 mod dot;
@@ -28,6 +29,7 @@ mod transpose;
 mod zero;
 
 pub use add::*;
+pub use cholesky::*;
 pub use conj::*;
 pub use div::*;
 pub use dot::*;
@@ -35,6 +37,7 @@ pub use eye::*;
 pub use inv::*;
 pub use l1norm::*;
 pub use l2norm::*;
+pub use lu::*;
 pub use minmax::*;
 pub use mul::*;
 #[cfg(feature = "rand")]
