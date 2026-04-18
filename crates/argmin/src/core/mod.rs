@@ -49,7 +49,8 @@ pub use kv::{KvValue, KV};
 pub use parallelization::{SendAlias, SyncAlias};
 pub use problem::{
     CostFunction, EqualityConstraint, EqualityConstraintJacobian, Gradient, Hessian,
-    InequalityConstraint, InequalityConstraintJacobian, Jacobian, LinearProgram, Operator, Problem,
+    InequalityConstraint, InequalityConstraintJacobian, Jacobian, LagrangianHessian, LinearProgram,
+    Operator, Problem,
 };
 pub use result::OptimizationResult;
 pub use solver::Solver;

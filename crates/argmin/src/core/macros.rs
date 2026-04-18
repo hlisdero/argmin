@@ -139,8 +139,99 @@ macro_rules! bulk {
             true
         }
     };
-}
 
+    ($method_name:tt, $input1:ty, $input2:ty, $input3:ty, $output:ty) => {
+        paste::item! {
+            #[doc = concat!(
+                "Compute `",
+                stringify!($method_name),
+                "` in bulk. ",
+                "If the `rayon` feature is enabled, multiple calls to `",
+                stringify!($method_name),
+                "` will be run in parallel using `rayon`, otherwise they will execute ",
+                "sequentially. If the `rayon` feature is enabled, parallelization can still be ",
+                "turned off by overwriting `parallelize` to return `false`. This can be useful ",
+                "in cases where it is preferable to parallelize only certain parts. ",
+                "Note that even if `parallelize` is set to false, the inputs and the ",
+                "problem are still required to be `Send` and `Sync`. Those bounds are linked to ",
+                "the `rayon` feature. This method can be overwritten.",
+            )]
+            fn [<bulk_ $method_name>]<P1, P2, P3>(
+                &self,
+                input1: &[P1],
+                input2: &[P2],
+                input3: &[P3],
+            ) -> Result<Vec<$output>, Error>
+            where
+                P1: std::borrow::Borrow<$input1> + SyncAlias,
+                P2: std::borrow::Borrow<$input2> + SyncAlias,
+                P3: std::borrow::Borrow<$input3> + SyncAlias,
+                $output: SendAlias,
+                Self: SyncAlias,
+            {
+                if input1.len() != input2.len() || input1.len() != input3.len() {
+                    return Err(argmin_error!(
+                        InvalidParameter,
+                        concat!(
+                            "Input slices passed to `bulk_",
+                            stringify!($method_name),
+                            "` must have the same length."
+                        )
+                    ));
+                }
+
+                #[cfg(feature = "rayon")]
+                {
+                    if self.parallelize() {
+                        input1
+                            .par_iter()
+                            .zip(input2.par_iter())
+                            .zip(input3.par_iter())
+                            .map(|((a, b), c)| {
+                                self.$method_name(a.borrow(), b.borrow(), c.borrow())
+                            })
+                            .collect()
+                    } else {
+                        input1
+                            .iter()
+                            .zip(input2.iter())
+                            .zip(input3.iter())
+                            .map(|((a, b), c)| {
+                                self.$method_name(a.borrow(), b.borrow(), c.borrow())
+                            })
+                            .collect()
+                    }
+                }
+                #[cfg(not(feature = "rayon"))]
+                {
+                    input1
+                        .iter()
+                        .zip(input2.iter())
+                        .zip(input3.iter())
+                        .map(|((a, b), c)| self.$method_name(a.borrow(), b.borrow(), c.borrow()))
+                        .collect()
+                }
+            }
+        }
+
+        #[doc = concat!(
+                    "Indicates whether to parallelize calls to `",
+                    stringify!($method_name),
+                    "` when using `bulk_",
+                    stringify!($method_name),
+                    "`. By default returns true, but can be set manually to `false` if needed. ",
+                    "This allows users to turn off parallelization for certain traits ",
+                    "implemented on their problem. ",
+                    "Note that parallelization requires the `rayon` feature to be enabled, ",
+                    "otherwise calls to `",
+                    stringify!($method_name),
+                    "` will be executed sequentially independent of how `parallelize` is set."
+                )]
+        fn parallelize(&self) -> bool {
+            true
+        }
+    };
+}
 /// Implements a simple send and a simple sync test for a given type.
 #[cfg(test)]
 macro_rules! send_sync_test {

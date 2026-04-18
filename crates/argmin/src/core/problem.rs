@@ -534,6 +534,64 @@ pub trait InequalityConstraintJacobian {
     bulk!(inequality_constraint_jacobian, Self::Param, Self::Jacobian);
 }
 
+/// Defines the Hessian of the Lagrangian for a problem.
+///
+/// The Hessian of the Lagrangian depends on the current parameter vector and on the multipliers
+/// associated with the equality and inequality constraints.
+///
+/// # Example
+///
+/// ```
+/// use argmin::core::{LagrangianHessian, Error};
+///
+/// struct Problem {}
+///
+/// impl LagrangianHessian for Problem {
+///     type Param = Vec<f64>;
+///     type MultipliersEq = Vec<f64>;
+///     type MultipliersIneq = Vec<f64>;
+///     type Hessian = Vec<Vec<f64>>;
+///
+///     fn lagrangian_hessian(
+///         &self,
+///         param: &Self::Param,
+///         multipliers_eq: &Self::MultipliersEq,
+///         multipliers_ineq: &Self::MultipliersIneq,
+///     ) -> Result<Self::Hessian, Error> {
+///         Ok(vec![
+///             vec![2.0f64 + multipliers_eq[0], 0.0f64],
+///             vec![0.0f64, 2.0f64 + multipliers_ineq[0]],
+///         ])
+///     }
+/// }
+/// ```
+pub trait LagrangianHessian {
+    /// Type of the parameter vector
+    type Param;
+    /// Type of the multipliers associated with equality constraints
+    type MultipliersEq;
+    /// Type of the multipliers associated with inequality constraints
+    type MultipliersIneq;
+    /// Type of the Hessian
+    type Hessian;
+
+    /// Compute the Hessian of the Lagrangian
+    fn lagrangian_hessian(
+        &self,
+        param: &Self::Param,
+        multipliers_eq: &Self::MultipliersEq,
+        multipliers_ineq: &Self::MultipliersIneq,
+    ) -> Result<Self::Hessian, Error>;
+
+    bulk!(
+        lagrangian_hessian,
+        Self::Param,
+        Self::MultipliersEq,
+        Self::MultipliersIneq,
+        Self::Hessian
+    );
+}
+
 /// Defines a linear Program
 ///
 /// # Example
@@ -1349,6 +1407,132 @@ impl<O: InequalityConstraintJacobian> Problem<O> {
     {
         self.bulk_problem("inequality_constraint_jacobian_count", params.len(), |p| {
             p.bulk_inequality_constraint_jacobian(params)
+        })
+    }
+}
+
+/// Wraps a call to `lagrangian_hessian` defined in the `LagrangianHessian` trait and as such
+/// allows to call `lagrangian_hessian` on an instance of `Problem`. Internally, the number of
+/// evaluations of `lagrangian_hessian` is counted.
+impl<O: LagrangianHessian> Problem<O> {
+    /// Calls `lagrangian_hessian` defined in the `LagrangianHessian` trait and keeps track of the
+    /// number of evaluations.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use argmin::core::{Problem, Error, LagrangianHessian};
+    /// #
+    /// # #[derive(Eq, PartialEq, Debug, Clone)]
+    /// # struct UserDefinedProblem {}
+    /// #
+    /// # impl LagrangianHessian for UserDefinedProblem {
+    /// #     type Param = Vec<f64>;
+    /// #     type MultipliersEq = Vec<f64>;
+    /// #     type MultipliersIneq = Vec<f64>;
+    /// #     type Hessian = Vec<Vec<f64>>;
+    /// #
+    /// #     fn lagrangian_hessian(
+    /// #         &self,
+    /// #         param: &Self::Param,
+    /// #         multipliers_eq: &Self::MultipliersEq,
+    /// #         multipliers_ineq: &Self::MultipliersIneq,
+    /// #     ) -> Result<Self::Hessian, Error> {
+    /// #         Ok(vec![
+    /// #             vec![param[0] + multipliers_eq[0], 0.0f64],
+    /// #             vec![0.0f64, param[1] + multipliers_ineq[0]],
+    /// #         ])
+    /// #     }
+    /// # }
+    /// // `UserDefinedProblem` implements `LagrangianHessian`.
+    /// let mut problem1 = Problem::new(UserDefinedProblem {});
+    ///
+    /// let param = vec![2.0f64, 1.0f64];
+    /// let multipliers_eq = vec![3.0f64];
+    /// let multipliers_ineq = vec![4.0f64];
+    ///
+    /// let res = problem1.lagrangian_hessian(&param, &multipliers_eq, &multipliers_ineq);
+    ///
+    /// assert_eq!(problem1.counts["lagrangian_hessian_count"], 1);
+    /// # assert_eq!(res.unwrap(), vec![vec![5.0f64, 0.0f64], vec![0.0f64, 5.0f64]]);
+    /// ```
+    pub fn lagrangian_hessian(
+        &mut self,
+        param: &O::Param,
+        multipliers_eq: &O::MultipliersEq,
+        multipliers_ineq: &O::MultipliersIneq,
+    ) -> Result<O::Hessian, Error> {
+        self.problem("lagrangian_hessian_count", |p| {
+            p.lagrangian_hessian(param, multipliers_eq, multipliers_ineq)
+        })
+    }
+
+    /// Calls `bulk_lagrangian_hessian` defined in the `LagrangianHessian` trait and keeps track
+    /// of the number of evaluations.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use argmin::core::{Problem, Error, LagrangianHessian};
+    /// #
+    /// # #[derive(Eq, PartialEq, Debug, Clone)]
+    /// # struct UserDefinedProblem {}
+    /// #
+    /// # impl LagrangianHessian for UserDefinedProblem {
+    /// #     type Param = Vec<f64>;
+    /// #     type MultipliersEq = Vec<f64>;
+    /// #     type MultipliersIneq = Vec<f64>;
+    /// #     type Hessian = Vec<Vec<f64>>;
+    /// #
+    /// #     fn lagrangian_hessian(
+    /// #         &self,
+    /// #         param: &Self::Param,
+    /// #         multipliers_eq: &Self::MultipliersEq,
+    /// #         multipliers_ineq: &Self::MultipliersIneq,
+    /// #     ) -> Result<Self::Hessian, Error> {
+    /// #         Ok(vec![
+    /// #             vec![param[0] + multipliers_eq[0], 0.0f64],
+    /// #             vec![0.0f64, param[1] + multipliers_ineq[0]],
+    /// #         ])
+    /// #     }
+    /// # }
+    /// // `UserDefinedProblem` implements `LagrangianHessian`.
+    /// let mut problem1 = Problem::new(UserDefinedProblem {});
+    ///
+    /// let param1 = vec![2.0f64, 1.0f64];
+    /// let param2 = vec![3.0f64, 5.0f64];
+    /// let multipliers_eq1 = vec![3.0f64];
+    /// let multipliers_eq2 = vec![4.0f64];
+    /// let multipliers_ineq1 = vec![4.0f64];
+    /// let multipliers_ineq2 = vec![6.0f64];
+    ///
+    /// let params = vec![&param1, &param2];
+    /// let multipliers_eq = vec![&multipliers_eq1, &multipliers_eq2];
+    /// let multipliers_ineq = vec![&multipliers_ineq1, &multipliers_ineq2];
+    ///
+    /// let res =
+    ///     problem1.bulk_lagrangian_hessian(&params, &multipliers_eq, &multipliers_ineq);
+    ///
+    /// assert_eq!(problem1.counts["lagrangian_hessian_count"], 2);
+    /// # let res = res.unwrap();
+    /// # assert_eq!(res[0], vec![vec![5.0f64, 0.0f64], vec![0.0f64, 5.0f64]]);
+    /// # assert_eq!(res[1], vec![vec![7.0f64, 0.0f64], vec![0.0f64, 11.0f64]]);
+    /// ```
+    pub fn bulk_lagrangian_hessian<P, E, I>(
+        &mut self,
+        params: &[P],
+        multipliers_eq: &[E],
+        multipliers_ineq: &[I],
+    ) -> Result<Vec<O::Hessian>, Error>
+    where
+        P: std::borrow::Borrow<O::Param> + SyncAlias,
+        E: std::borrow::Borrow<O::MultipliersEq> + SyncAlias,
+        I: std::borrow::Borrow<O::MultipliersIneq> + SyncAlias,
+        O::Hessian: SendAlias,
+        O: SyncAlias,
+    {
+        self.bulk_problem("lagrangian_hessian_count", params.len(), |p| {
+            p.bulk_lagrangian_hessian(params, multipliers_eq, multipliers_ineq)
         })
     }
 }
