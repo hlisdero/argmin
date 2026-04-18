@@ -7,10 +7,12 @@
 
 pub mod iterstate;
 pub mod linearprogramstate;
+pub mod nonlinearprogramstate;
 pub mod populationstate;
 
 pub use iterstate::IterState;
 pub use linearprogramstate::LinearProgramState;
+pub use nonlinearprogramstate::NonLinearProgramState;
 pub use populationstate::PopulationState;
 
 use crate::core::{ArgminFloat, Problem, TerminationReason, TerminationStatus};

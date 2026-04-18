@@ -54,5 +54,5 @@ pub use problem::{
 };
 pub use result::OptimizationResult;
 pub use solver::Solver;
-pub use state::{IterState, LinearProgramState, PopulationState, State};
+pub use state::{IterState, LinearProgramState, NonLinearProgramState, PopulationState, State};
 pub use termination::{TerminationReason, TerminationStatus};
