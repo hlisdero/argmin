@@ -478,6 +478,62 @@ pub trait Jacobian {
     bulk!(jacobian, Self::Param, Self::Jacobian);
 }
 
+/// Defines equality constraints for a problem.
+///
+/// It follows the form h(x) = (0, ... , 0), where h is a vector field.
+pub trait EqualityConstraint {
+    /// Type of the parameter vector
+    type Param;
+    /// Type of the return value of the equality constraints
+    type Output;
+
+    /// Compute all equality constraints
+    fn equality_constraint(&self, param: &Self::Param) -> Result<Self::Output, Error>;
+
+    bulk!(equality_constraint, Self::Param, Self::Output);
+}
+
+/// Defines inequality constraints for a problem.
+///
+/// It follows the form g(x) <= (0, ... , 0), where g is a vector field.
+pub trait InequalityConstraint {
+    /// Type of the parameter vector
+    type Param;
+    /// Type of the return value of the inequality constraints
+    type Output;
+
+    /// Compute all inequality constraints
+    fn inequality_constraint(&self, param: &Self::Param) -> Result<Self::Output, Error>;
+
+    bulk!(inequality_constraint, Self::Param, Self::Output);
+}
+
+/// Defines the Jacobian of the vector field representing the equality constraints for a problem.
+pub trait EqualityConstraintJacobian {
+    /// Type of the parameter vector
+    type Param;
+    /// Type of the Jacobian
+    type Jacobian;
+
+    /// Compute the Jacobian of the equality constraints
+    fn equality_constraint_jacobian(&self, param: &Self::Param) -> Result<Self::Jacobian, Error>;
+
+    bulk!(equality_constraint_jacobian, Self::Param, Self::Jacobian);
+}
+
+/// Defines the Jacobian of the vector field representing the inequality constraints for a problem.
+pub trait InequalityConstraintJacobian {
+    /// Type of the parameter vector
+    type Param;
+    /// Type of the Jacobian
+    type Jacobian;
+
+    /// Compute the Jacobian of the inequality constraints
+    fn inequality_constraint_jacobian(&self, param: &Self::Param) -> Result<Self::Jacobian, Error>;
+
+    bulk!(inequality_constraint_jacobian, Self::Param, Self::Jacobian);
+}
+
 /// Defines a linear Program
 ///
 /// # Example
@@ -934,6 +990,365 @@ impl<O: Jacobian> Problem<O> {
     {
         self.bulk_problem("jacobian_count", params.len(), |problem| {
             problem.bulk_jacobian(params)
+        })
+    }
+}
+
+/// Wraps a call to `equality_constraint` defined in the `EqualityConstraint` trait and as such
+/// allows to call `equality_constraint` on an instance of `Problem`. Internally, the number of
+/// evaluations of `equality_constraint` is counted.
+impl<O: EqualityConstraint> Problem<O> {
+    /// Calls `equality_constraint` defined in the `EqualityConstraint` trait and keeps track of
+    /// the number of evaluations.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use argmin::core::{Problem, Error, EqualityConstraint};
+    /// #
+    /// # #[derive(Eq, PartialEq, Debug, Clone)]
+    /// # struct UserDefinedProblem {}
+    /// #
+    /// # impl EqualityConstraint for UserDefinedProblem {
+    /// #     type Param = Vec<f64>;
+    /// #     type Output = Vec<f64>;
+    /// #
+    /// #     fn equality_constraint(&self, param: &Self::Param) -> Result<Self::Output, Error> {
+    /// #         Ok(vec![param[0] + param[1] - 1.0f64])
+    /// #     }
+    /// # }
+    /// // `UserDefinedProblem` implements `EqualityConstraint`.
+    /// let mut problem1 = Problem::new(UserDefinedProblem {});
+    ///
+    /// let param = vec![2.0f64, 1.0f64];
+    ///
+    /// let res = problem1.equality_constraint(&param);
+    ///
+    /// assert_eq!(problem1.counts["equality_constraint_count"], 1);
+    /// # assert_eq!(res.unwrap(), vec![2.0f64]);
+    /// ```
+    pub fn equality_constraint(&mut self, param: &O::Param) -> Result<O::Output, Error> {
+        self.problem("equality_constraint_count", |p| {
+            p.equality_constraint(param)
+        })
+    }
+
+    /// Calls `bulk_equality_constraint` defined in the `EqualityConstraint` trait and keeps track
+    /// of the number of evaluations.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use argmin::core::{Problem, Error, EqualityConstraint};
+    /// #
+    /// # #[derive(Eq, PartialEq, Debug, Clone)]
+    /// # struct UserDefinedProblem {}
+    /// #
+    /// # impl EqualityConstraint for UserDefinedProblem {
+    /// #     type Param = Vec<f64>;
+    /// #     type Output = Vec<f64>;
+    /// #
+    /// #     fn equality_constraint(&self, param: &Self::Param) -> Result<Self::Output, Error> {
+    /// #         Ok(vec![param[0] + param[1] - 1.0f64])
+    /// #     }
+    /// # }
+    /// // `UserDefinedProblem` implements `EqualityConstraint`.
+    /// let mut problem1 = Problem::new(UserDefinedProblem {});
+    ///
+    /// let param1 = vec![2.0f64, 1.0f64];
+    /// let param2 = vec![3.0f64, 5.0f64];
+    /// let params = vec![&param1, &param2];
+    ///
+    /// let res = problem1.bulk_equality_constraint(&params);
+    ///
+    /// assert_eq!(problem1.counts["equality_constraint_count"], 2);
+    /// # let res = res.unwrap();
+    /// # assert_eq!(res[0], vec![2.0f64]);
+    /// # assert_eq!(res[1], vec![7.0f64]);
+    /// ```
+    pub fn bulk_equality_constraint<P>(&mut self, params: &[P]) -> Result<Vec<O::Output>, Error>
+    where
+        P: std::borrow::Borrow<O::Param> + SyncAlias,
+        O::Output: SendAlias,
+        O: SyncAlias,
+    {
+        self.bulk_problem("equality_constraint_count", params.len(), |p| {
+            p.bulk_equality_constraint(params)
+        })
+    }
+}
+
+/// Wraps a call to `inequality_constraint` defined in the `InequalityConstraint` trait and as
+/// such allows to call `inequality_constraint` on an instance of `Problem`. Internally, the
+/// number of evaluations of `inequality_constraint` is counted.
+impl<O: InequalityConstraint> Problem<O> {
+    /// Calls `inequality_constraint` defined in the `InequalityConstraint` trait and keeps track
+    /// of the number of evaluations.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use argmin::core::{Problem, Error, InequalityConstraint};
+    /// #
+    /// # #[derive(Eq, PartialEq, Debug, Clone)]
+    /// # struct UserDefinedProblem {}
+    /// #
+    /// # impl InequalityConstraint for UserDefinedProblem {
+    /// #     type Param = Vec<f64>;
+    /// #     type Output = Vec<f64>;
+    /// #
+    /// #     fn inequality_constraint(&self, param: &Self::Param) -> Result<Self::Output, Error> {
+    /// #         Ok(vec![param[0] - 1.0f64, param[1] - 1.0f64])
+    /// #     }
+    /// # }
+    /// // `UserDefinedProblem` implements `InequalityConstraint`.
+    /// let mut problem1 = Problem::new(UserDefinedProblem {});
+    ///
+    /// let param = vec![2.0f64, 1.0f64];
+    ///
+    /// let res = problem1.inequality_constraint(&param);
+    ///
+    /// assert_eq!(problem1.counts["inequality_constraint_count"], 1);
+    /// # assert_eq!(res.unwrap(), vec![1.0f64, 0.0f64]);
+    /// ```
+    pub fn inequality_constraint(&mut self, param: &O::Param) -> Result<O::Output, Error> {
+        self.problem("inequality_constraint_count", |p| {
+            p.inequality_constraint(param)
+        })
+    }
+
+    /// Calls `bulk_inequality_constraint` defined in the `InequalityConstraint` trait and keeps
+    /// track of the number of evaluations.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use argmin::core::{Problem, Error, InequalityConstraint};
+    /// #
+    /// # #[derive(Eq, PartialEq, Debug, Clone)]
+    /// # struct UserDefinedProblem {}
+    /// #
+    /// # impl InequalityConstraint for UserDefinedProblem {
+    /// #     type Param = Vec<f64>;
+    /// #     type Output = Vec<f64>;
+    /// #
+    /// #     fn inequality_constraint(&self, param: &Self::Param) -> Result<Self::Output, Error> {
+    /// #         Ok(vec![param[0] - 1.0f64, param[1] - 1.0f64])
+    /// #     }
+    /// # }
+    /// // `UserDefinedProblem` implements `InequalityConstraint`.
+    /// let mut problem1 = Problem::new(UserDefinedProblem {});
+    ///
+    /// let param1 = vec![2.0f64, 1.0f64];
+    /// let param2 = vec![3.0f64, 5.0f64];
+    /// let params = vec![&param1, &param2];
+    ///
+    /// let res = problem1.bulk_inequality_constraint(&params);
+    ///
+    /// assert_eq!(problem1.counts["inequality_constraint_count"], 2);
+    /// # let res = res.unwrap();
+    /// # assert_eq!(res[0], vec![1.0f64, 0.0f64]);
+    /// # assert_eq!(res[1], vec![2.0f64, 4.0f64]);
+    /// ```
+    pub fn bulk_inequality_constraint<P>(&mut self, params: &[P]) -> Result<Vec<O::Output>, Error>
+    where
+        P: std::borrow::Borrow<O::Param> + SyncAlias,
+        O::Output: SendAlias,
+        O: SyncAlias,
+    {
+        self.bulk_problem("inequality_constraint_count", params.len(), |p| {
+            p.bulk_inequality_constraint(params)
+        })
+    }
+}
+
+/// Wraps a call to `equality_constraint_jacobian` defined in the
+/// `EqualityConstraintJacobian` trait and as such allows to call
+/// `equality_constraint_jacobian` on an instance of `Problem`. Internally, the number of
+/// evaluations of `equality_constraint_jacobian` is counted.
+impl<O: EqualityConstraintJacobian> Problem<O> {
+    /// Calls `equality_constraint_jacobian` defined in the `EqualityConstraintJacobian` trait and
+    /// keeps track of the number of evaluations.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use argmin::core::{Problem, Error, EqualityConstraintJacobian};
+    /// #
+    /// # #[derive(Eq, PartialEq, Debug, Clone)]
+    /// # struct UserDefinedProblem {}
+    /// #
+    /// # impl EqualityConstraintJacobian for UserDefinedProblem {
+    /// #     type Param = Vec<f64>;
+    /// #     type Jacobian = Vec<Vec<f64>>;
+    /// #
+    /// #     fn equality_constraint_jacobian(
+    /// #         &self,
+    /// #         param: &Self::Param,
+    /// #     ) -> Result<Self::Jacobian, Error> {
+    /// #         Ok(vec![vec![1.0f64, 1.0f64]])
+    /// #     }
+    /// # }
+    /// // `UserDefinedProblem` implements `EqualityConstraintJacobian`.
+    /// let mut problem1 = Problem::new(UserDefinedProblem {});
+    ///
+    /// let param = vec![2.0f64, 1.0f64];
+    ///
+    /// let res = problem1.equality_constraint_jacobian(&param);
+    ///
+    /// assert_eq!(problem1.counts["equality_constraint_jacobian_count"], 1);
+    /// # assert_eq!(res.unwrap(), vec![vec![1.0f64, 1.0f64]]);
+    /// ```
+    pub fn equality_constraint_jacobian(&mut self, param: &O::Param) -> Result<O::Jacobian, Error> {
+        self.problem("equality_constraint_jacobian_count", |p| {
+            p.equality_constraint_jacobian(param)
+        })
+    }
+
+    /// Calls `bulk_equality_constraint_jacobian` defined in the `EqualityConstraintJacobian`
+    /// trait and keeps track of the number of evaluations.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use argmin::core::{Problem, Error, EqualityConstraintJacobian};
+    /// #
+    /// # #[derive(Eq, PartialEq, Debug, Clone)]
+    /// # struct UserDefinedProblem {}
+    /// #
+    /// # impl EqualityConstraintJacobian for UserDefinedProblem {
+    /// #     type Param = Vec<f64>;
+    /// #     type Jacobian = Vec<Vec<f64>>;
+    /// #
+    /// #     fn equality_constraint_jacobian(
+    /// #         &self,
+    /// #         param: &Self::Param,
+    /// #     ) -> Result<Self::Jacobian, Error> {
+    /// #         Ok(vec![vec![1.0f64, 1.0f64]])
+    /// #     }
+    /// # }
+    /// // `UserDefinedProblem` implements `EqualityConstraintJacobian`.
+    /// let mut problem1 = Problem::new(UserDefinedProblem {});
+    ///
+    /// let param1 = vec![2.0f64, 1.0f64];
+    /// let param2 = vec![3.0f64, 5.0f64];
+    /// let params = vec![&param1, &param2];
+    ///
+    /// let res = problem1.bulk_equality_constraint_jacobian(&params);
+    ///
+    /// assert_eq!(problem1.counts["equality_constraint_jacobian_count"], 2);
+    /// # let res = res.unwrap();
+    /// # assert_eq!(res[0], vec![vec![1.0f64, 1.0f64]]);
+    /// # assert_eq!(res[1], vec![vec![1.0f64, 1.0f64]]);
+    /// ```
+    pub fn bulk_equality_constraint_jacobian<P>(
+        &mut self,
+        params: &[P],
+    ) -> Result<Vec<O::Jacobian>, Error>
+    where
+        P: std::borrow::Borrow<O::Param> + SyncAlias,
+        O::Jacobian: SendAlias,
+        O: SyncAlias,
+    {
+        self.bulk_problem("equality_constraint_jacobian_count", params.len(), |p| {
+            p.bulk_equality_constraint_jacobian(params)
+        })
+    }
+}
+
+/// Wraps a call to `inequality_constraint_jacobian` defined in the
+/// `InequalityConstraintJacobian` trait and as such allows to call
+/// `inequality_constraint_jacobian` on an instance of `Problem`. Internally, the number of
+/// evaluations of `inequality_constraint_jacobian` is counted.
+impl<O: InequalityConstraintJacobian> Problem<O> {
+    /// Calls `inequality_constraint_jacobian` defined in the `InequalityConstraintJacobian` trait
+    /// and keeps track of the number of evaluations.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use argmin::core::{Problem, Error, InequalityConstraintJacobian};
+    /// #
+    /// # #[derive(Eq, PartialEq, Debug, Clone)]
+    /// # struct UserDefinedProblem {}
+    /// #
+    /// # impl InequalityConstraintJacobian for UserDefinedProblem {
+    /// #     type Param = Vec<f64>;
+    /// #     type Jacobian = Vec<Vec<f64>>;
+    /// #
+    /// #     fn inequality_constraint_jacobian(
+    /// #         &self,
+    /// #         param: &Self::Param,
+    /// #     ) -> Result<Self::Jacobian, Error> {
+    /// #         Ok(vec![vec![1.0f64, 0.0f64], vec![0.0f64, 1.0f64]])
+    /// #     }
+    /// # }
+    /// // `UserDefinedProblem` implements `InequalityConstraintJacobian`.
+    /// let mut problem1 = Problem::new(UserDefinedProblem {});
+    ///
+    /// let param = vec![2.0f64, 1.0f64];
+    ///
+    /// let res = problem1.inequality_constraint_jacobian(&param);
+    ///
+    /// assert_eq!(problem1.counts["inequality_constraint_jacobian_count"], 1);
+    /// # assert_eq!(res.unwrap(), vec![vec![1.0f64, 0.0f64], vec![0.0f64, 1.0f64]]);
+    /// ```
+    pub fn inequality_constraint_jacobian(
+        &mut self,
+        param: &O::Param,
+    ) -> Result<O::Jacobian, Error> {
+        self.problem("inequality_constraint_jacobian_count", |p| {
+            p.inequality_constraint_jacobian(param)
+        })
+    }
+
+    /// Calls `bulk_inequality_constraint_jacobian` defined in the
+    /// `InequalityConstraintJacobian` trait and keeps track of the number of evaluations.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use argmin::core::{Problem, Error, InequalityConstraintJacobian};
+    /// #
+    /// # #[derive(Eq, PartialEq, Debug, Clone)]
+    /// # struct UserDefinedProblem {}
+    /// #
+    /// # impl InequalityConstraintJacobian for UserDefinedProblem {
+    /// #     type Param = Vec<f64>;
+    /// #     type Jacobian = Vec<Vec<f64>>;
+    /// #
+    /// #     fn inequality_constraint_jacobian(
+    /// #         &self,
+    /// #         param: &Self::Param,
+    /// #     ) -> Result<Self::Jacobian, Error> {
+    /// #         Ok(vec![vec![1.0f64, 0.0f64], vec![0.0f64, 1.0f64]])
+    /// #     }
+    /// # }
+    /// // `UserDefinedProblem` implements `InequalityConstraintJacobian`.
+    /// let mut problem1 = Problem::new(UserDefinedProblem {});
+    ///
+    /// let param1 = vec![2.0f64, 1.0f64];
+    /// let param2 = vec![3.0f64, 5.0f64];
+    /// let params = vec![&param1, &param2];
+    ///
+    /// let res = problem1.bulk_inequality_constraint_jacobian(&params);
+    ///
+    /// assert_eq!(problem1.counts["inequality_constraint_jacobian_count"], 2);
+    /// # let res = res.unwrap();
+    /// # assert_eq!(res[0], vec![vec![1.0f64, 0.0f64], vec![0.0f64, 1.0f64]]);
+    /// # assert_eq!(res[1], vec![vec![1.0f64, 0.0f64], vec![0.0f64, 1.0f64]]);
+    /// ```
+    pub fn bulk_inequality_constraint_jacobian<P>(
+        &mut self,
+        params: &[P],
+    ) -> Result<Vec<O::Jacobian>, Error>
+    where
+        P: std::borrow::Borrow<O::Param> + SyncAlias,
+        O::Jacobian: SendAlias,
+        O: SyncAlias,
+    {
+        self.bulk_problem("inequality_constraint_jacobian_count", params.len(), |p| {
+            p.bulk_inequality_constraint_jacobian(params)
         })
     }
 }
