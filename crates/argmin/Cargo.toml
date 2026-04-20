@@ -28,6 +28,7 @@ ctrlc = { version = "3.2.4", features = ["termination"], optional = true }
 getrandom = { version = "0.3", optional = true }
 rayon = { version = "1.6.0", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
+nalgebra = { version = "0.34", optional = true }
 
 [dev-dependencies]
 approx = "0.5.0"
@@ -41,15 +42,20 @@ argmin-observer-paramwriter = { path = "../argmin-observer-paramwriter" }
 argmin-checkpointing-file = { path = "../argmin-checkpointing-file" }
 
 [features]
-default = ["rand"]
+default = ["rand", "experimental_ipm"]
 rand = ["dep:rand", "argmin-math/rand"]
 wasm-bindgen = ["getrandom/wasm_js"]
 serde1 = ["serde", "rand_xoshiro/serde"]
 _ndarrayl = ["argmin-math/ndarray_latest"]
 # When adding new features, please consider adding them to either `full` (for users)
 # or `_full_dev` (only for local development, testing and computing test coverage).
-full = ["default", "serde1", "ctrlc"]
+full = ["default", "serde1", "ctrlc", "experimental_ipm"]
 _full_dev = ["full", "_ndarrayl"]
+
+# Experimental interior point method:
+# - exposes solver::interiorpointmethod
+# - enables nalgebra support in argmin-math
+experimental_ipm = ["dep:nalgebra", "argmin-math/nalgebra_latest"]
 
 [badges]
 maintenance = { status = "actively-developed" }

@@ -20,3 +20,9 @@ pub mod quasinewton;
 #[cfg(feature = "rand")]
 pub mod simulatedannealing;
 pub mod trustregion;
+
+// Interior-point method currently requires the nalgebra backend.
+// Keep the whole module tree gated so argmin continues to compile
+// unchanged for users who do not enable nalgebra support in argmin-math.
+#[cfg(feature = "experimental_ipm")]
+pub mod interiorpointmethod;
